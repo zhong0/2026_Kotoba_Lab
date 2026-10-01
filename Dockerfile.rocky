@@ -1,0 +1,26 @@
+# 使用 Rocky 官方組織維護的 image（Docker Hub 的 rockylinux:9 library image 已停更，勿用）
+FROM rockylinux/rockylinux:9-minimal
+
+# 拉滿安全更新是弱掃歸零的關鍵；install_weak_deps=0 與 --nodocs 減少不必要的套件面積
+RUN microdnf update -y --nodocs --setopt=install_weak_deps=0 && \
+    microdnf install -y --nodocs --setopt=install_weak_deps=0 \
+        python3.12 python3.12-pip shadow-utils && \
+    microdnf clean all && \
+    rm -rf /var/cache/dnf /var/cache/yum /var/lib/dnf
+
+WORKDIR /app
+
+COPY requirements.txt .
+# pip/setuptools 舊版本常被弱掃點名，先升到最新
+RUN python3.12 -m pip install --no-cache-dir --upgrade pip setuptools && \
+    python3.12 -m pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# 以非 root 執行；log 一律寫 stdout，程式目錄不需可寫
+RUN useradd --system --no-create-home --home-dir /app --shell /sbin/nologin appuser
+USER appuser
+
+EXPOSE 8000
+
+CMD ["python3.12", "main.py"]

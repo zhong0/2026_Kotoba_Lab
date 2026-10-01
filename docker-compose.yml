@@ -1,0 +1,138 @@
+x-aws-local: &aws-local
+  AWS_ENDPOINT_URL: http://localstack:4566  # 有值 = 連 LocalStack；帳密由 aws_* secrets 提供
+
+# 三個 worker 共用：同一個 image，只差執行哪個模組（各服務自己的 entrypoint）
+x-worker: &worker
+  build: .  # 與 app 同一個 image（第二次 build 會直接用快取）
+  image: kotoba:latest
+  environment:
+    <<: *aws-local
+    LOG_LEVEL: INFO
+  secrets:
+    - aws_access_key_id
+    - aws_secret_access_key
+  depends_on:
+    localstack:
+      condition: service_healthy
+  healthcheck:
+    # heartbeat 檔 60 秒內有更新才算健康（見 app/workers/healthcheck.py）
+    test: ["CMD", "/venv/bin/python", "-m", "app.workers.healthcheck"]
+    interval: 15s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+  restart: unless-stopped
+
+services:
+  app:
+    build: .
+    image: kotoba:latest
+    container_name: kotoba-api
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *aws-local
+      DB_HOST: postgres
+      LOG_LEVEL: INFO
+    secrets:
+      - db_username
+      - db_password
+      - aws_access_key_id
+      - aws_secret_access_key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      # image 內沒有 curl，用 Python 打 /health；非 200（含 503）時 urlopen 會丟例外 → exit 1
+      test: ["CMD", "/venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  analyzer:
+    <<: *worker
+    container_name: kotoba-analyzer
+    entrypoint: ["/venv/bin/python", "-m", "app.workers.analyzer"]
+
+  db-writer:
+    <<: *worker
+    container_name: kotoba-db-writer
+    entrypoint: ["/venv/bin/python", "-m", "app.workers.db_writer"]
+
+  stats-writer:
+    <<: *worker
+    container_name: kotoba-stats-writer
+    entrypoint: ["/venv/bin/python", "-m", "app.workers.stats_writer"]
+
+  # 一次性：把資料庫升到最新版後結束；app 等它成功才啟動
+  migrate:
+    build: .  # 與 app 同一個 image（第二次 build 會直接用快取）
+    image: kotoba:latest
+    container_name: kotoba-migrate
+    entrypoint: ["/venv/bin/python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DB_HOST: postgres
+    secrets:
+      - db_username
+      - db_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  postgres:
+    image: postgres:16  # 與 Aurora PostgreSQL 同大版本
+    container_name: kotoba-postgres
+    ports:
+      - "127.0.0.1:5432:5432"  # 只綁本機，供 psql / DBeaver 連線；不暴露到區網
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/db_username
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: kotoba
+    secrets:
+      - db_username
+      - db_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$(cat /run/secrets/db_username)\" -d kotoba"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:4
+    container_name: kotoba-localstack
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      SERVICES: sqs,sns
+      AWS_DEFAULT_REGION: ap-northeast-1
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}  # 新版 image 若要求登入，填在 .env.local
+    volumes:
+      - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    healthcheck:
+      # ready.d 腳本全部跑完才算健康，避免 app 啟動時 queue 還不存在
+      test: ["CMD-SHELL", "curl -sf localhost:4566/_localstack/init/ready | grep -q '\"completed\": true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+
+secrets:
+  db_username:
+    file: ./secrets/db_username.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  aws_access_key_id:
+    file: ./secrets/aws_access_key_id.txt
+  aws_secret_access_key:
+    file: ./secrets/aws_secret_access_key.txt

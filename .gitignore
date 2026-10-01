@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project secrets / local env（不進版控）
+secrets/
+.env.local
+.env.*.local
+
+# 舊版檔案 log 輸出目錄
+log_record/
+
+# 內部文件（不進版控）
+docs/DB_SCHEMA.md
+REQUIREMENTS.md

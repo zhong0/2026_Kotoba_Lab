@@ -1,0 +1,24 @@
+# 機密：密碼由 docker secrets 掛載、設定由環境變數注入，不可打包進 image
+secrets/
+.env
+.env.*
+
+# 版控與開發環境
+.git
+.gitignore
+.venv
+venv/
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+.DS_Store
+
+# 不公開的文件（與 .gitignore 一致）
+REQUIREMENTS.md
+docs/
+
+# 只在 compose 層使用，不需要進 image
+docker-compose.yml
+localstack/
+log_record/
