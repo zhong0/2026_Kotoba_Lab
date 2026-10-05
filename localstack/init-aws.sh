@@ -2,6 +2,7 @@
 # LocalStack 啟動完成後自動執行（掛載到 /etc/localstack/init/ready.d/）
 # 建立：analyze-queue → analyzer → SNS comment-analyzed → db-writer-queue / stats-queue
 # 每個 queue 都有自己的 DLQ，失敗 MAX_RECEIVE 次後移入
+# 另外先建好今天的 human / ai FIFO queue（正式環境由排程每天建立，見 app/messaging/daily_queues.py）
 set -euo pipefail
 
 MAX_RECEIVE=3
@@ -45,4 +46,16 @@ for q in db-writer-queue stats-queue; do
     --notification-endpoint "${q_arn}" \
     --attributes RawMessageDelivery=true >/dev/null
   echo "subscribed: ${q} -> comment-analyzed"
+done
+
+# 今天的每日 FIFO queue（台北時間；屬性需與 daily_queues.py 一致，否則 app 端 create_queue 會失敗）
+DAILY_RETENTION_SECONDS=172800  # 2 天
+today=$(TZ=Asia/Taipei date +%F)
+for prefix in human ai; do
+  create_queue "${prefix}-${today}.fifo" "{
+    \"FifoQueue\": \"true\",
+    \"ContentBasedDeduplication\": \"false\",
+    \"MessageRetentionPeriod\": \"${DAILY_RETENTION_SECONDS}\"
+  }" >/dev/null
+  echo "queue ready: ${prefix}-${today}.fifo"
 done

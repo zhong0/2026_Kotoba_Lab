@@ -11,6 +11,7 @@ from app.core.config import app_config as config
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
 from app.db.postgres import postgres
+from app.db.redis import redis
 
 logger = get_logger(__name__)
 
@@ -18,7 +19,9 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     postgres.connect()
+    redis.connect()
     yield
+    redis.disconnect()
     postgres.disconnect()
 
 
@@ -28,7 +31,7 @@ if config.CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.CORS_ORIGINS,
-        allow_credentials=True,  # 匿名 visitor_id cookie 需要；origins 不可用 "*"
+        allow_credentials=True,  # 匿名 anon_id cookie 需要；origins 不可用 "*"
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
     )

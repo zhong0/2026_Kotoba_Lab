@@ -15,6 +15,6 @@ DEFAULT_CONTENT = "今天天氣很好，心情也跟著變好了！"
 
 if __name__ == "__main__":
     content = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONTENT
-    body = {"comment_id": str(uuid.uuid4()), "content": content}
+    body = {"comment_id": str(uuid.uuid4()), "content": content, "ui_language": "zh-TW"}
     message_id = send_message(config.ANALYZE_QUEUE_NAME, body)
     print(f"sent message_id={message_id} comment_id={body['comment_id']} content={content}")

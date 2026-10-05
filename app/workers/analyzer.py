@@ -1,7 +1,7 @@
 """analyzer：analyze-queue → 分析 → 發布到 SNS comment-analyzed（不直接寫 DB）。
 
-收到的訊息：{"comment_id": "...", "content": "..."}
-發布的訊息：{"comment_id": "...", <分析結果，見需求 4.7>}
+收到的訊息：{"comment_id": "...", "content": "...", "ui_language": "zh-TW"}
+發布的訊息：{"comment_id": "...", <分析結果，見 app/analysis/fake_llm.py>}
 
 地端：python -m app.workers.analyzer
 雲端：Lambda handler 指向 app.workers.analyzer.handler
@@ -19,9 +19,9 @@ def process(body: dict) -> None:
     comment_id = body["comment_id"]
     if config.LLM_PROVIDER != "fake":
         raise NotImplementedError(f"LLM_PROVIDER={config.LLM_PROVIDER} is not implemented yet")
-    result = fake_llm.analyze(body["content"])
+    result = fake_llm.analyze(body["content"], body.get("ui_language", "zh-TW"))
     publish(config.ANALYZED_TOPIC_NAME, {"comment_id": comment_id, **result})
-    logger.info(f"analyzed comment_id={comment_id} polarity={result['polarity']}")
+    logger.info(f"analyzed comment_id={comment_id} sentiment={result['sentiment']}")
 
 
 handler = lambda_handler(process)

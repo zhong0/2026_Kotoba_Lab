@@ -10,6 +10,7 @@
 |---|---|---|
 | `secrets/db_username.txt` | PostgreSQL 帳號 | 自訂 |
 | `secrets/db_password.txt` | PostgreSQL 密碼 | 自訂 |
+| `secrets/redis_password.txt` | Redis（Valkey）密碼 | 自訂 |
 | `secrets/aws_access_key_id.txt` | 連 LocalStack 用 | 自訂 |
 | `secrets/aws_secret_access_key.txt` | 連 LocalStack 用 | 自訂 |
 
@@ -17,6 +18,7 @@
 mkdir -p secrets
 printf '<帳號>' > secrets/db_username.txt
 printf '<密碼>' > secrets/db_password.txt
+printf '<密碼>' > secrets/redis_password.txt
 printf '<任意非空值>' > secrets/aws_access_key_id.txt
 printf '<任意非空值>' > secrets/aws_secret_access_key.txt
 ```
@@ -35,7 +37,7 @@ docker compose ps -a
 
 | 服務 | 預期狀態 |
 |---|---|
-| `postgres`、`localstack` | healthy |
+| `postgres`、`redis`、`localstack` | healthy |
 | `migrate` | Exited (0)（建立資料表後結束） |
 | `app`、`analyzer`、`db-writer`、`stats-writer` | healthy |
 

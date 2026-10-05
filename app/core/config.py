@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 SECRET_FILE_FIELDS = {
     "db_username": "DB_USERNAME",
     "db_password": "DB_PASSWORD",
+    "redis_password": "REDIS_PASSWORD",
     "aws_access_key_id": "AWS_ACCESS_KEY_ID",
     "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
 }
@@ -37,6 +38,9 @@ class AppConfig(BaseSettings):
 
     SECRETS_DIR: str = ""
 
+    # 「一天」的切換時區：每日 queue 名稱、comments.day 都以這個時區的日期為準
+    APP_TIMEZONE: str = "Asia/Taipei"
+
     # database：直接給 DATABASE_URL 時優先使用（雲端），否則由下列欄位組出（地端）
     DATABASE_URL: str = ""
     DB_HOST: str = "localhost"
@@ -46,6 +50,13 @@ class AppConfig(BaseSettings):
     DB_PASSWORD: str = ""
     DB_POOL_MIN_SIZE: int = 1
     DB_POOL_MAX_SIZE: int = 5
+
+    # redis：限流、補產鎖用。故障時一律放行（fail open），所以 timeout 要短，避免拖慢請求
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_SSL: bool = False  # ElastiCache 開啟傳輸加密時設為 true
+    REDIS_TIMEOUT_SECONDS: float = 0.5
 
     # aws：AWS_ENDPOINT_URL 留空 = 連真的 AWS；地端指向 LocalStack
     AWS_ENDPOINT_URL: str = ""
@@ -57,6 +68,9 @@ class AppConfig(BaseSettings):
     DB_WRITER_QUEUE_NAME: str = "db-writer-queue"
     STATS_QUEUE_NAME: str = "stats-queue"
     ANALYZED_TOPIC_NAME: str = "comment-analyzed"
+    # 每日 FIFO queue 的名稱前綴，實際名稱為 {prefix}-YYYY-MM-DD.fifo
+    HUMAN_QUEUE_PREFIX: str = "human"
+    AI_QUEUE_PREFIX: str = "ai"
 
     # llm：fake = 不呼叫 Bedrock，回傳固定格式的假結果（地端開發用）
     LLM_PROVIDER: Literal["fake", "bedrock"] = "fake"
